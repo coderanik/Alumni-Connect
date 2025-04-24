@@ -76,18 +76,6 @@ Make sure to follow the guidelines in our [CONTRIBUTING.md](./CONTRIBUTING.md) f
 
 ---
 
-## 👀 **Contributors**
-
-We extend our gratitude to all contributors for their invaluable efforts in shaping this project. Your dedication helps drive the platform’s success and create a valuable resource for alumni and students alike.
-Don't forget to give a ⭐
-<div align="center">
-  <a href="https://github.com/MohammedMusharraf11/Alumni-Connect">
-    <img src="https://contrib.rocks/image?repo=MohammedMusharraf11/Alumni-Connect&&max=12"/>
-  </a>
-</div>
-
----
-
 ## 🎉 **Join Us!**
 
 Whether you’re here to contribute code, suggest improvements, or provide feedback, your input is crucial. Let’s work together to build a thriving platform for **Alumni Connect**!
