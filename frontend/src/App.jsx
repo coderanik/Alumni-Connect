@@ -1,4 +1,3 @@
-import React from 'react';
 import { Route, Routes } from 'react-router-dom';
 import Layout from './pages/Layout';
 import Home from './pages/Home';
@@ -15,6 +14,7 @@ import Features from './components/Features';
 import AdminPanel from './components/AdminPanel/AdminPanel';
 import { SocketProvider } from './context/SocketContext'; // Correct import
 import Network from './components/Network';
+import Messages from './components/Message';
 
 function App() {
   const authUserId = localStorage.getItem('userId'); // Retrieve the userId from localStorage
@@ -36,7 +36,8 @@ function App() {
             <Route path="/student-register" element={<StudentReg />} />
             <Route path="/alumni-register" element={<AlumniReg />} />
           </Route>
-          <Route path="/dashboard" element={<Dashboard />} />
+          <Route path="/dashboard" element={<Dashboard />}/>
+          <Route path="/messages" element={<Messages />} />
           <Route path="/supportus" element={<SupportUs />} />
           <Route path="/network" element={<Network />} />
         </Routes>

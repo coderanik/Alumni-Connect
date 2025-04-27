@@ -1,188 +1,220 @@
-import React, { useState, useEffect, useContext } from 'react';
-import { SocketContext } from '../context/SocketContext';
-import { SendHorizontal } from 'lucide-react';
-import useListenMessages from '../hooks/useListenMessages';
+import React, { useState, useEffect } from "react";
+import axios from "axios";
+import { io } from "socket.io-client";
+
+// Base URL for API calls
+const API_BASE_URL = 'http://localhost:8080';
+
+// Connect to backend socket with authentication
+const socket = io(API_BASE_URL, {
+  auth: {
+    token: localStorage.getItem('token')
+  },
+  transports: ['websocket', 'polling'],
+  reconnection: true,
+  reconnectionAttempts: 5,
+  reconnectionDelay: 1000,
+  timeout: 10000
+});
 
 const Messages = () => {
-  const { socket, userId } = useContext(SocketContext); 
-  const [selectedUser, setSelectedUser] = useState(null);
-  const [newMessage, setNewMessage] = useState('');
   const [users, setUsers] = useState([]);
+  const [selectedUser, setSelectedUser] = useState(null);
   const [messages, setMessages] = useState([]);
-  
-  const getAuthToken = () => localStorage.getItem('token');
-  
-  useEffect(() => {
-    if (socket && userId) {
-      socket.emit('registerUser', userId);  // Send userId to associate socket with user
-      console.log('User registered with socket:', userId);
-    }
-  }, [socket, userId]);
+  const [newMessage, setNewMessage] = useState("");
+  const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
 
-  // Fetch users
+  const currentUserId = localStorage.getItem('userId');
+  const token = localStorage.getItem('token');
+
+  // Register user with socket when component mounts
+  useEffect(() => {
+    if (currentUserId && token) {
+      socket.emit('registerUser', currentUserId);
+    }
+  }, [currentUserId, token]);
+
+  // Handle socket connection events
+  useEffect(() => {
+    socket.on('connect', () => {
+      console.log('Socket connected successfully');
+      setError("");
+    });
+
+    socket.on('connect_error', (error) => {
+      console.error('Socket connection error:', error);
+      setError("Connection error. Please try reconnecting.");
+    });
+
+    socket.on('disconnect', (reason) => {
+      console.log('Socket disconnected:', reason);
+      if (reason === 'io server disconnect') {
+        socket.connect();
+      }
+    });
+
+    return () => {
+      socket.off('connect');
+      socket.off('connect_error');
+      socket.off('disconnect');
+    };
+  }, []);
+
+  // Fetch users list
   useEffect(() => {
     const fetchUsers = async () => {
+      if (!token) {
+        setError("Please login to access messages");
+        return;
+      }
+
+      setLoading(true);
       try {
-        const response = await fetch('http://localhost:8080/api/user', {
+        const res = await axios.get(`${API_BASE_URL}/api/user`, {
           headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${getAuthToken()}`,
-          },
+            Authorization: `Bearer ${token}`
+          }
         });
 
-        if (!response.ok) {
-          throw new Error('Failed to fetch users');
-        }
-
-        const data = await response.json();
-        setUsers(data.users || []);
-      } catch (error) {
-        console.error('Error fetching users:', error);
+        console.log("Users response:", res.data);
+        setUsers(res.data.users || []);
+        setError("");
+      } catch (err) {
+        console.error('Failed to fetch users', err);
+        setError("Failed to load users. Please check your connection.");
+      } finally {
+        setLoading(false);
       }
     };
 
     fetchUsers();
-  }, []);
+  }, [token]);
 
-  // Fetch messages for the selected user
+  // Fetch messages when user is selected
   useEffect(() => {
-    if (!selectedUser) return;
-
     const fetchMessages = async () => {
+      if (!selectedUser) return;
+      setLoading(true);
       try {
-        const response = await fetch(
-          `http://localhost:8080/api/messages/${selectedUser._id}`,
-          {
-            headers: {
-              'Content-Type': 'application/json',
-              Authorization: `Bearer ${getAuthToken()}`,
-            },
+        const res = await axios.get(`${API_BASE_URL}/api/messages/${selectedUser._id}`, {
+          headers: {
+            Authorization: `Bearer ${token}`
           }
-        );
-
-        if (!response.ok) {
-          throw new Error('Failed to fetch messages');
-        }
-
-        const data = await response.json();
-        setMessages(data);
-      } catch (error) {
-        console.error('Error fetching messages:', error);
+        });
+        console.log("Messages response:", res.data);
+        setMessages(res.data || []);
+      } catch (err) {
+        console.error('Failed to fetch messages', err);
+        setError("Failed to load messages. Please try again.");
+      } finally {
+        setLoading(false);
       }
     };
 
     fetchMessages();
-  }, [selectedUser]);
+  }, [selectedUser, token]);
 
-  // Listen for real-time messages
-  useListenMessages({
-    onMessageReceived: (newMessage) => {
-      setMessages((prev) => [...prev, newMessage]);
-    },
-  });
+  // Socket - Receive new message
+  useEffect(() => {
+    socket.on('receiveMessage', (message) => {
+      console.log("Received message via socket:", message);
+      
+      if (
+        selectedUser && 
+        ((message.senderId === selectedUser._id && message.receiverId === currentUserId) || 
+         (message.receiverId === selectedUser._id && message.senderId === currentUserId))
+      ) {
+        setMessages((prev) => [...prev, message]);
+      }
+    });
 
-  // Send a message
+    return () => socket.off('receiveMessage');
+  }, [selectedUser, currentUserId]);
+
   const handleSendMessage = async () => {
     if (!newMessage.trim() || !selectedUser) return;
-  
-    const messageData = {
-      message: newMessage,
-      senderId: userId,
-      receiverId: selectedUser._id,
-    };
-  
     try {
-      const response = await fetch(
-        `http://localhost:8080/api/messages/send/${selectedUser._id}`,
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${getAuthToken()}`,
-          },
-          body: JSON.stringify(messageData),
+      const messageData = {
+        message: newMessage
+      };
+
+      // Send message to backend
+      await axios.post(`${API_BASE_URL}/api/messages/send/${selectedUser._id}`, messageData, {
+        headers: {
+          Authorization: `Bearer ${token}`
         }
-      );
-  
-      if (!response.ok) {
-        throw new Error('Failed to send message');
-      }
-  
-      const data = await response.json();
-      setMessages((prev) => [...prev, data]);
-  
-      // Clear the message input field
-      setNewMessage('');
-    } catch (error) {
-      console.error('Error sending message:', error);
+      });
+
+      setNewMessage("");
+    } catch (err) {
+      console.error('Failed to send message', err);
+      setError("Failed to send message. Please try again.");
     }
   };
-  
 
   return (
-    <div className="flex h-screen">
-      {/* Left Sidebar */}
-      <div className="w-1/4 bg-gray-100 border-r overflow-y-auto">
-        <h2 className="text-lg font-semibold p-4">Users</h2>
-        <ul>
-          {users.map((user) => (
-            <li
-              key={user._id}
-              onClick={() => setSelectedUser(user)}
-              className={`p-4 cursor-pointer ${selectedUser?._id === user._id ? 'bg-blue-500 text-white' : 'hover:bg-gray-200'}`}
-            >
-              <div className="flex items-center">
-                <img src={user.profilePhoto || '/default-profile.png'} alt={user.fullName} className="w-8 h-8 rounded-full mr-2" />
-                <span>{user.fullName}</span>
+    <div className="flex">
+      {/* Sidebar */}
+      <div className="w-1/4 p-4 border-r h-screen overflow-y-auto">
+        <h2 className="text-lg font-bold mb-4">Messages</h2>
+        <input
+          type="text"
+          placeholder="Search users..."
+          className="w-full p-2 border rounded mb-4"
+        />
+        
+        {error && <div className="text-red-500 mb-2">{error}</div>}
+        
+        <div>
+          {loading ? (
+            <div className="text-center py-4">Loading users...</div>
+          ) : users.length > 0 ? (
+            users.map((user) => (
+              <div
+                key={user._id}
+                className={`p-2 cursor-pointer hover:bg-gray-100 rounded ${selectedUser?._id === user._id ? "bg-gray-200" : ""}`}
+                onClick={() => setSelectedUser(user)}
+              >
+                {user.fullName || user.name || "Unknown User"}
               </div>
-            </li>
-          ))}
-        </ul>
-      </div>
-
-      {/* Right Chat Area */}
-      <div className="w-3/4 flex flex-col">
-        <div className="p-4 bg-gray-200">
-          <h2 className="text-xl font-semibold">{selectedUser ? selectedUser.fullName : 'Select a user to chat'}</h2>
+            ))
+          ) : (
+            <div className="text-center py-4">No users found.</div>
+          )}
         </div>
-        <div className="flex-1 overflow-y-auto p-4 mb-4 flex flex-col gap-2">
-  {messages.map((msg, index) => (
-    <div
-      key={index}
-      className={`flex ${
-        msg.senderId === userId ? 'justify-end' : 'justify-start'
-      }`}
-    >
-      <div
-        className={`p-2 rounded-lg inline-block max-w-xs ${
-          msg.senderId === userId
-            ? 'bg-blue-500 text-white'
-            : 'bg-gray-300 text-black'
-        }`}
-      >
-        {msg.message}
       </div>
-    </div>
-  ))}
-</div>
-{selectedUser && (
-  <div className="p-4 flex items-center border-t sticky bottom-4 bg-white">
-    <input
-      type="text"
-      value={newMessage}
-      onChange={(e) => setNewMessage(e.target.value)}
-      placeholder="Type a message..."
-      className="flex-1 border rounded-lg p-2 mr-2"
-    />
-    <button
-      onClick={handleSendMessage}
-      className="p-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600"
-    >
-      <SendHorizontal />
-    </button>
-  </div>
-)}
 
+      {/* Chat Window */}
+      <div className="flex-1 p-4">
+        {selectedUser ? (
+          <>
+            <h2 className="text-xl font-bold mb-4">Chat with {selectedUser.fullName}</h2>
+            <div className="space-y-2 mb-4">
+              {messages.map((msg) => (
+                <div
+                  key={msg._id}
+                  className={`p-2 rounded ${msg.senderId === currentUserId ? 'bg-blue-200' : 'bg-gray-200'}`}
+                >
+                  {msg.message}
+                </div>
+              ))}
+            </div>
+
+            <div className="flex">
+              <input
+                type="text"
+                className="w-full p-2 border rounded"
+                placeholder="Type a message..."
+                value={newMessage}
+                onChange={(e) => setNewMessage(e.target.value)}
+              />
+              <button onClick={handleSendMessage} className="ml-2 p-2 bg-blue-500 text-white rounded">Send</button>
+            </div>
+          </>
+        ) : (
+          <div className="text-center py-4">Select a user to start chatting</div>
+        )}
       </div>
     </div>
   );

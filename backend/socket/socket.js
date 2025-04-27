@@ -1,72 +1,74 @@
-const socketIo = require('socket.io');
+const { Server } = require('socket.io');
+const jwt = require('jsonwebtoken');
+const User = require('../Models/users');
 
-let io;
+// Map to track which socket ID belongs to which user
 const userSocketMap = new Map();
 
-/**
- * Initializes the Socket.IO server.
- * @param {Object} server - The HTTP server instance.
- */
-const initSocket = (server) => {
-  io = socketIo(server, {
+let io;
+
+function initSocket(server) {
+  io = new Server(server, {
     cors: {
-      origin: 'http://localhost:5173', // Adjust to match your frontend origin
+      origin: ['http://localhost:5173', 'http://localhost:3000'],
       methods: ['GET', 'POST'],
       credentials: true,
+      allowedHeaders: ['Authorization']
     },
+    allowEIO3: true
+  });
+
+  // Middleware for socket authentication
+  io.use(async (socket, next) => {
+    try {
+      const token = socket.handshake.auth.token || socket.handshake.headers.authorization?.split(' ')[1];
+      
+      if (!token) {
+        return next(new Error('Authentication error: No token provided'));
+      }
+
+      const decoded = jwt.verify(token, process.env.JWT_SECRET);
+      const user = await User.findById(decoded.userId);
+      
+      if (!user) {
+        return next(new Error('Authentication error: User not found'));
+      }
+
+      socket.user = user;
+      next();
+    } catch (error) {
+      console.error('Socket authentication error:', error.message);
+      next(new Error('Authentication error: Invalid token'));
+    }
   });
 
   io.on('connection', (socket) => {
     console.log('User connected:', socket.id);
 
-    // Register user and map userId to socketId
     socket.on('registerUser', (userId) => {
       if (userId) {
+        console.log(`User ${userId} registered with socket ${socket.id}`);
         userSocketMap.set(userId, socket.id);
-        console.log(`User ${userId} associated with socket ${socket.id}`);
-      } else {
-        console.log('User ID is required for registration.');
       }
     });
 
-    // Handle message sending
-    socket.on('sendMessage', (messageData) => {
-      const { receiverId, senderId, message } = messageData;
-      console.log(`Message from ${senderId} to ${receiverId}: ${message}`);
-
-      // Ensure receiverId exists in the map
-      const receiverSocketId = getReceiverSocketId(receiverId);
-      if (receiverSocketId) {
-        io.to(receiverSocketId).emit('receiveMessage', {
-          senderId,
-          message,
-        });
-        console.log(`Message sent to ${receiverId} via socket ${receiverSocketId}`);
-      } else {
-        console.log(`Receiver ${receiverId} is not connected.`);
-      }
-    });
-
-    // Handle user disconnection
     socket.on('disconnect', () => {
+      console.log('User disconnected:', socket.id);
+      // Remove user from mapping when disconnected
       for (const [userId, socketId] of userSocketMap.entries()) {
         if (socketId === socket.id) {
           userSocketMap.delete(userId);
-          console.log(`User ${userId} disconnected.`);
           break;
         }
       }
     });
   });
-};
 
-/**
- * Helper function to get the socket ID of a user by their userId.
- * @param {string} receiverId - The userId of the receiver.
- * @returns {string|null} - The socket ID if found, otherwise null.
- */
-const getReceiverSocketId = (receiverId) => {
-  return userSocketMap.get(receiverId) || null;
-};
+  return io;
+}
 
-module.exports = { initSocket, getReceiverSocketId };
+function getReceiverSocketId(userId) {
+  return userSocketMap.get(userId);
+}
+
+module.exports = { initSocket, getReceiverSocketId, io: () => io };
