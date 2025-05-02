@@ -13,6 +13,7 @@ const userRoutes = require('./Routes/userRoutes');
 const connectCloudinary = require('./utils/cloudinary')
 const AdminRoutes = require('./Routes/AdminRoutes')
 const networkRoutes = require('./Routes/NetworkRoutes');
+const postRoutes = require('./Routes/postRoutes');
 require('./Models/db');
 
 connectCloudinary();
@@ -45,6 +46,7 @@ app.use('/api/messages', messageRoutes);
 app.use('/api/user', userRoutes);
 app.use('/admin',AdminRoutes);
 app.use('/api', networkRoutes); // Now available at /api/network
+app.use('/api/posts', postRoutes); // Add post routes
 
 // Start the server
 const PORT = process.env.PORT || 8080;

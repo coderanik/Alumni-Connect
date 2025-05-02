@@ -12,6 +12,7 @@ import Network from "../components/Network";
 import OpenSource from "../components/OpenSource";
 import Messages from "../components/Message";
 import EditProfilePopup from "../components/EditProfilePopup";
+import Forum from "../components/Forum/Forum";
 
 function Dashboard() {
   const [loggedInUser, setLoggedInUser] = useState("");
@@ -55,6 +56,9 @@ function Dashboard() {
     if (title === "Open Source") {
       setActiveSection("open-source");
     }
+    if (title === "Forum") {
+      setActiveSection("forum");
+    }
   };
 
   const handleCancelForm = () => {
@@ -85,6 +89,7 @@ function Dashboard() {
               icon={assets.Money}
               onClick={() => handleCardClick("Job Openings")}
             />
+           
           </div>
         );
       case "events":
@@ -95,6 +100,8 @@ function Dashboard() {
         return <OpenSource />;
       case "messages":
         return <Messages loggedInUser={loggedInUser} />;
+      case "forum":
+        return <Forum />;
       default:
         return <div>Default content</div>;
     }

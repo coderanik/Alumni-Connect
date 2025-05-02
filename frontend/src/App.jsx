@@ -12,36 +12,40 @@ import SupportUs from './components/SupportUs';
 import AlumniReg from './pages/AlumniReg';
 import Features from './components/Features';
 import AdminPanel from './components/AdminPanel/AdminPanel';
-import { SocketProvider } from './context/SocketContext'; // Correct import
+import { SocketProvider } from './context/SocketContext';
 import Network from './components/Network';
 import Messages from './components/Message';
+import { AuthProvider } from './context/AuthContext';
+import Forum from './components/Forum/Forum';
 
 function App() {
-  const authUserId = localStorage.getItem('userId'); // Retrieve the userId from localStorage
+  const authUserId = localStorage.getItem('userId');
 
   return (
     <div className="font-outfit overflow-hidden">
       <ToastContainer />
-      {/* Wrap the app with SocketProvider and pass the userId */}
-      <SocketProvider userId={authUserId}>
-        <Routes>
-          <Route path="/" element={<Layout />}>
-            <Route index element={<Home />} />
-            <Route path="/about" element={<About />} />
-            <Route path="/contact" element={<Contact />} />
-            <Route path="/login" element={<Login />} />
-            <Route path="/admin" element={<AdminPanel />} />
-            <Route path="/features" element={<Features />} />
-            <Route path="/roleselection" element={<RoleSelection />} />
-            <Route path="/student-register" element={<StudentReg />} />
-            <Route path="/alumni-register" element={<AlumniReg />} />
-          </Route>
-          <Route path="/dashboard" element={<Dashboard />}/>
-          <Route path="/messages" element={<Messages />} />
-          <Route path="/supportus" element={<SupportUs />} />
-          <Route path="/network" element={<Network />} />
-        </Routes>
-      </SocketProvider>
+      <AuthProvider>
+        <SocketProvider userId={authUserId}>
+          <Routes>
+            <Route path="/" element={<Layout />}>
+              <Route index element={<Home />} />
+              <Route path="/about" element={<About />} />
+              <Route path="/contact" element={<Contact />} />
+              <Route path="/login" element={<Login />} />
+              <Route path="/admin" element={<AdminPanel />} />
+              <Route path="/features" element={<Features />} />
+              <Route path="/roleselection" element={<RoleSelection />} />
+              <Route path="/student-register" element={<StudentReg />} />
+              <Route path="/alumni-register" element={<AlumniReg />} />
+            </Route>
+            <Route path="/dashboard" element={<Dashboard />}/>
+            <Route path="/messages" element={<Messages />} />
+            <Route path="/supportus" element={<SupportUs />} />
+            <Route path="/network" element={<Network />} />
+            <Route path="/forum" element={<Forum />} />
+          </Routes>
+        </SocketProvider>
+      </AuthProvider>
     </div>
   );
 }

@@ -7,7 +7,8 @@ import {
   Users,
   SquareChevronRight,
   Settings,
-  LogOut
+  LogOut,
+  MessageCircle
 } from "lucide-react";
 import { assets } from '../assets/assets';
 import { handleSuccess } from "../utils/utils";
@@ -29,7 +30,8 @@ const Sidebar = ({ setActiveSection, activeSection }) => {
     { name: "messages", icon: <MessageSquareMore size={20} />, label: "Messages" },
     { name: "events", icon: <Globe size={20} />, label: "Events" },
     { name: "network", icon: <Users size={20} />, label: "Network" },
-    { name: "open-source", icon: <SquareChevronRight size={20} />, label: "Open Source" }
+    { name: "open-source", icon: <SquareChevronRight size={20} />, label: "Open Source" },
+    { name: "forum", icon: <MessageCircle size={20} />, label: "Forum" }
   ];
 
   // Route mapping
@@ -38,7 +40,8 @@ const Sidebar = ({ setActiveSection, activeSection }) => {
     messages: "/messages", // Placeholder for future route
     events: "/events",     // Placeholder for future route
     network: "/network",
-    "open-source": "/open-source" // Placeholder
+    "open-source": "/open-source", // Placeholder
+    forum: "/forum" // Placeholder for future route
   };
 
   return (
