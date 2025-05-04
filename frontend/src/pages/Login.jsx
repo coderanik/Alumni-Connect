@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { handleError, handleSuccess } from '../utils/utils'; // Import your utility functions
 import { ToastContainer } from 'react-toastify';
+import { useAuth } from '../context/AuthContext';
 
 function Login() {
     const [loginInfo, setLoginInfo] = useState({
@@ -10,6 +11,7 @@ function Login() {
     });
     const [userType, setUserType] = useState('student'); // New state for user type
     const navigate = useNavigate();
+    const { login } = useAuth();
 
     const handleChange = (e) => {
         setLoginInfo({
@@ -34,7 +36,7 @@ function Login() {
         // Determine the API endpoint based on user type
         const url = userType === 'alumni'
             ? 'http://localhost:8080/api/alumni/login' // Alumni login endpoint
-            : 'http://localhost:8080/auth/login'; // User login endpoint
+            : 'http://localhost:8080/api/auth/login'; // User login endpoint
 
         try {
             const response = await fetch(url, {
@@ -50,11 +52,16 @@ function Login() {
             if (success) {
                 handleSuccess(message);
 
-                // Store the token and user information
-                localStorage.setItem('token', token);
-                localStorage.setItem('profilePhoto', profilePhoto);
-                localStorage.setItem('loggedInUser', fullname);
-                localStorage.setItem('userId', _id); // Store userId properly
+                // Create user data object
+                const userData = {
+                    fullName: fullname,
+                    _id: _id,
+                    profilePhoto: profilePhoto,
+                    isAlumni: userType === 'alumni'
+                };
+
+                // Use the login function from AuthContext
+                await login(userData, token);
 
                 setTimeout(() => {
                     navigate('/dashboard');
@@ -63,7 +70,8 @@ function Login() {
                 handleError(message || 'Login failed');
             }
         } catch (error) {
-            handleError(error.message);
+            console.error('Login error:', error);
+            handleError(error.message || 'Login failed');
         }
     };
 
@@ -72,84 +80,104 @@ function Login() {
     };
 
     return (
-        <>
-            <div className="container mx-auto py-16 text-outfit">
-                <div className="max-w-md mx-auto p-8 border border-[#D4D4D4] rounded-lg shadow-lg bg-white">
-                    <h3 className="text-3xl font-bold text-center text-secondary mb-4">Login</h3>
-                    <p className="text-zinc-500 text-center mb-5">Please login to connect with Alumni or Students</p>
-
-                    {/* User Type Selection */}
-                    <div className="flex justify-center mb-4">
-                        <label className="mr-4">
+        <div className="min-h-screen flex items-center justify-center bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
+            <div className="max-w-md w-full space-y-8">
+                <div>
+                    <h2 className="mt-6 text-center text-3xl font-extrabold text-gray-900">
+                        Sign in to your account
+                    </h2>
+                </div>
+                <form className="mt-8 space-y-6" onSubmit={handleSubmit}>
+                    <div className="rounded-md shadow-sm -space-y-px">
+                        <div>
+                            <label htmlFor="collegeEmail" className="sr-only">College Email</label>
                             <input
+                                id="collegeEmail"
+                                name="collegeEmail"
+                                type="email"
+                                required
+                                className="appearance-none rounded-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-t-md focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 focus:z-10 sm:text-sm"
+                                placeholder="College Email"
+                                value={loginInfo.collegeEmail}
+                                onChange={handleChange}
+                            />
+                        </div>
+                        <div>
+                            <label htmlFor="password" className="sr-only">Password</label>
+                            <input
+                                id="password"
+                                name="password"
+                                type="password"
+                                required
+                                className="appearance-none rounded-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-b-md focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 focus:z-10 sm:text-sm"
+                                placeholder="Password"
+                                value={loginInfo.password}
+                                onChange={handleChange}
+                            />
+                        </div>
+                    </div>
+
+                    <div className="flex items-center justify-between">
+                        <div className="flex items-center">
+                            <input
+                                id="student"
+                                name="userType"
                                 type="radio"
                                 value="student"
                                 checked={userType === 'student'}
                                 onChange={handleUserTypeChange}
+                                className="h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-gray-300 rounded"
                             />
-                            Student
-                        </label>
-                        <label>
+                            <label htmlFor="student" className="ml-2 block text-sm text-gray-900">
+                                Student
+                            </label>
+                        </div>
+                        <div className="flex items-center">
                             <input
+                                id="alumni"
+                                name="userType"
                                 type="radio"
                                 value="alumni"
                                 checked={userType === 'alumni'}
                                 onChange={handleUserTypeChange}
+                                className="h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-gray-300 rounded"
                             />
-                            Alumni
-                        </label>
+                            <label htmlFor="alumni" className="ml-2 block text-sm text-gray-900">
+                                Alumni
+                            </label>
+                        </div>
                     </div>
 
-                    <form onSubmit={handleSubmit}>
-                        <div className="flex flex-col mb-4">
-                            <label htmlFor="collegeEmail" className="text-gray-600 mb-2">Email</label>
-                            <input
-                                type="text"
-                                id="collegeEmail"
-                                name="collegeEmail"
-                                value={loginInfo.collegeEmail}
-                                onChange={handleChange}
-                                className="border rounded-md px-4 py-2 focus:outline-none focus:ring-2 focus:ring-primary-500"
-                            />
-                        </div>
-                        <div className="flex flex-col mb-4">
-                            <label htmlFor="password" className="text-gray-600 mb-2">Password</label>
-                            <input
-                                type="password"
-                                id="password"
-                                name="password"
-                                value={loginInfo.password}
-                                onChange={handleChange}
-                                className="border rounded-md px-4 py-2 focus:outline-none focus:ring-2 focus:ring-primary-500"
-                            />
-                        </div>
-                        <div className="flex justify-center mt-4">
-                            <button type="submit" className="bg-primary text-white px-4 py-2 rounded-md hover:bg-primary-600">
-                                Login
-                            </button>
-                        </div>
-                    </form>
-                    <br />
-                    <p className="text-gray-700 text-center">
+                    <div>
+                        <button
+                            type="submit"
+                            className="group relative w-full flex justify-center py-2 px-4 border border-transparent text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+                        >
+                            Sign in
+                        </button>
+                    </div>
+                </form>
+
+                <div className="text-center">
+                    <p className="text-sm text-gray-600">
                         Don't have an account?{' '}
-                        <Link to="/roleselection" className="text-blue-500 hover:underline">
-                            Register Here
+                        <Link to="/roleselection" className="font-medium text-indigo-600 hover:text-indigo-500">
+                            Register here
                         </Link>
                     </p>
-                    <br />
-                    <p className="text-gray-700 text-center">
-                        Admin?{' '}
-                        <span
-                            onClick={handleAdminRedirect}
-                            className="text-blue-500 cursor-pointer hover:underline"
-                        >
-                            Go to Admin Panel
-                        </span>
-                    </p>
                 </div>
-                <ToastContainer />
+
+                <div className="text-center">
+                    <button
+                        onClick={handleAdminRedirect}
+                        className="text-sm text-gray-600 hover:text-gray-900"
+                    >
+                        Admin Login
+                    </button>
+                </div>
             </div>
-        </>
+            <ToastContainer />
+        </div>
     );
 }
 

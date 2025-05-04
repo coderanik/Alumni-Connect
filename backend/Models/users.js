@@ -52,16 +52,16 @@ const userSchema = new Schema({
       },
 
       // Arrays for following students and alumni
-  followingStudents: [{ type: Schema.Types.ObjectId, ref: 'User' }],
-  followingAlumni: [{ type: Schema.Types.ObjectId, ref: 'Alumni' }],
+      followingStudents: [{ type: Schema.Types.ObjectId, ref: 'User' }],
+      followingAlumni: [{ type: Schema.Types.ObjectId, ref: 'Alumni' }],
 
-  // Array to track followers (only students can follow students)
-  followers: [{ type: Schema.Types.ObjectId, ref: 'User' }]
+      // Array to track followers (only students can follow students)
+      followers: [{ type: Schema.Types.ObjectId, ref: 'User' }]
 
     }, {
       timestamps: true // Automatically creates `createdAt` and `updatedAt` fields
     });
 
-const User = mongoose.model('users', userSchema);
+const User = mongoose.model('User', userSchema);
 
 module.exports = User;

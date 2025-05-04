@@ -1,4 +1,32 @@
 const User = require('../Models/users');
+const Alumni = require('../Models/alumni');
+
+// Get current user's profile
+const getCurrentUserProfile = async (req, res) => {
+  try {
+    const userId = req.user._id; // From auth middleware
+    const isAlumni = req.user.isAlumni;
+
+    let user;
+    if (isAlumni) {
+      user = await Alumni.findById(userId).select('fullName graduationYear role linkedin');
+    } else {
+      user = await User.findById(userId).select('fullName graduationYear course usn fieldOfStudy linkedin');
+    }
+
+    if (!user) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    res.json({
+      ...user.toObject(),
+      isAlumni
+    });
+  } catch (error) {
+    console.error('Error fetching current user profile:', error);
+    res.status(500).json({ error: 'Internal Server Error' });
+  }
+};
 
 // Get user profile
 const getUserProfile = async (req, res) => {
@@ -36,4 +64,5 @@ const updateUserProfile = async (req, res) => {
 module.exports = {
   getUserProfile,
   updateUserProfile,
+  getCurrentUserProfile
 };

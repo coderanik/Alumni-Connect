@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import axios from "axios";
+import axios from "../utils/axios";
 import { User } from "lucide-react";
 
 const USERS_PER_PAGE = 6;
@@ -14,18 +14,14 @@ const Network = () => {
   const [error, setError] = useState(null);
   const [following, setFollowing] = useState({});
   const authUserId = localStorage.getItem("userId");
-  const authToken = localStorage.getItem("token");
 
   const fetchNetworkData = async () => {
     try {
       setLoading(true);
-      const response = await axios.get("http://localhost:8080/api/network", {
-        headers: {
-          'Authorization': `Bearer ${authToken}`
-        }
-      });
+      const response = await axios.get("/api/network");
       
       if (response.status === 200) {
+        console.log("Network data received:", response.data);
         setNetworkData(response.data);
         
         // Set the initial follow state based on the followers array
@@ -35,9 +31,11 @@ const Network = () => {
             ...(response.data.students || []),
           ];
           
+          console.log("All users data:", allUsers);
+          
           const initialFollowState = {};
           allUsers.forEach((person) => {
-            initialFollowState[person.id] = Array.isArray(person.followers) && 
+            initialFollowState[person._id] = Array.isArray(person.followers) && 
                                            person.followers.includes(authUserId);
           });
           
@@ -48,7 +46,7 @@ const Network = () => {
       }
     } catch (err) {
       console.error("Error fetching network data:", err);
-      setError("Error fetching network data");
+      setError(err.response?.data?.error || "Error fetching network data");
     } finally {
       setLoading(false);
     }
@@ -69,10 +67,16 @@ const Network = () => {
   if (error) return <div className="p-6 text-red-500">{error}</div>;
 
   const alumniData = Array.isArray(networkData?.alumni)
-    ? networkData.alumni.map((a) => ({ ...a, type: "alumni" }))
+    ? networkData.alumni.map((a) => {
+        console.log("Alumni data:", a);
+        return { ...a, type: "alumni" };
+      })
     : [];
   const studentsData = Array.isArray(networkData?.students)
-    ? networkData.students.map((s) => ({ ...s, type: "student" }))
+    ? networkData.students.map((s) => {
+        console.log("Student data:", s);
+        return { ...s, type: "student" };
+      })
     : [];
 
   const allData = [...alumniData, ...studentsData];
@@ -101,8 +105,18 @@ const Network = () => {
       setTimeout(() => setError(null), 3000);
       return;
     }
+
+    // Prevent users from following themselves
+    if (id === authUserId) {
+      setError("You cannot follow yourself");
+      setTimeout(() => setError(null), 3000);
+      return;
+    }
     
     try {
+      console.log("Toggle follow params:", { id, personType, authUserId });
+      console.log("Auth token:", localStorage.getItem('token'));
+      
       // Set loading state for this specific button
       setFollowLoading(prev => ({ ...prev, [id]: true }));
       
@@ -113,19 +127,21 @@ const Network = () => {
       let url;
       if (isFollowing) {
         url = isAlumni 
-          ? `http://localhost:8080/api/network/unfollowAlumni/${authUserId}/${id}`
-          : `http://localhost:8080/api/network/unfollowUser/${authUserId}/${id}`;
+          ? `/api/follow/${authUserId}/unfollow/alumni/${id}`
+          : `/api/follow/${authUserId}/unfollow/user/${id}`;
       } else {
         url = isAlumni 
-          ? `http://localhost:8080/api/network/followAlumni/${authUserId}/${id}`
-          : `http://localhost:8080/api/network/followUser/${authUserId}/${id}`;
+          ? `/api/follow/${authUserId}/follow/alumni/${id}`
+          : `/api/follow/${authUserId}/follow/user/${id}`;
       }
 
-      const response = await axios.post(url, {}, {
-        headers: {
-          'Authorization': `Bearer ${authToken}`
-        }
+      console.log("Making request to URL:", url);
+      console.log("Request headers:", {
+        ...axios.defaults.headers,
+        Authorization: `Bearer ${localStorage.getItem('token')}`
       });
+
+      const response = await axios.post(url);
       
       if (response.status === 200) {
         // Update local state
@@ -135,12 +151,11 @@ const Network = () => {
         const actionText = isFollowing ? "unfollowed" : "followed";
         setError(`Successfully ${actionText} this person`);
         setTimeout(() => setError(null), 2000);
-        
-        // Optionally refresh data to ensure consistency
-        // await fetchNetworkData();
       }
     } catch (error) {
       console.error("Error toggling follow:", error);
+      console.error("Error response:", error.response);
+      console.error("Error config:", error.config);
       setError(error.response?.data?.message || "Error updating follow status");
       setTimeout(() => setError(null), 3000);
     } finally {
@@ -216,7 +231,7 @@ const Network = () => {
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {paginatedData.map((person) => (
               <div
-                key={person.id}
+                key={person._id}
                 className="bg-white shadow-md rounded-lg p-6 flex flex-col border border-gray-200 hover:shadow-lg transition-shadow"
               >
                 <div className="flex items-start mb-4">
@@ -275,15 +290,15 @@ const Network = () => {
                   )}
                   
                   <button
-                    onClick={() => toggleFollow(person.id, person.type)}
+                    onClick={() => toggleFollow(person._id, person.type)}
                     className={`px-4 py-2 rounded-lg font-medium text-sm transition-colors ${
-                      following[person.id]
+                      following[person._id]
                         ? "bg-red-100 text-red-600 hover:bg-red-200"
                         : "bg-blue-100 text-blue-600 hover:bg-blue-200"
                     }`}
-                    disabled={followLoading[person.id]}
+                    disabled={followLoading[person._id]}
                   >
-                    {followLoading[person.id] ? (
+                    {followLoading[person._id] ? (
                       <span className="flex items-center">
                         <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-current" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                           <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
@@ -292,7 +307,7 @@ const Network = () => {
                         Processing
                       </span>
                     ) : (
-                      following[person.id] ? "Unfollow" : "Follow"
+                      following[person._id] ? "Unfollow" : "Follow"
                     )}
                   </button>
                 </div>

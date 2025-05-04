@@ -11,7 +11,7 @@ exports.createPost = async (req, res) => {
             title,
             content,
             author: req.user._id,
-            authorType: req.isAlumni ? 'Alumni' : 'users'
+            authorType: req.isAlumni ? 'Alumni' : 'User'
         });
         await post.save();
         
@@ -20,12 +20,12 @@ exports.createPost = async (req, res) => {
             .populate({
                 path: 'author',
                 select: 'fullName email',
-                model: req.isAlumni ? 'Alumni' : 'users'
+                model: req.isAlumni ? 'Alumni' : 'User'
             })
             .populate({
                 path: 'comments.author',
                 select: 'fullName email',
-                model: req.isAlumni ? 'Alumni' : 'users'
+                model: req.isAlumni ? 'Alumni' : 'User'
             });
             
         res.status(201).json(populatedPost);
@@ -43,12 +43,12 @@ exports.getAllPosts = async (req, res) => {
             .populate({
                 path: 'author',
                 select: 'fullName email',
-                model: 'users'
+                model: 'User'
             })
             .populate({
                 path: 'comments.author',
                 select: 'fullName email',
-                model: 'users'
+                model: 'User'
             })
             .sort({ createdAt: -1 });
         res.status(200).json(posts);
@@ -73,7 +73,7 @@ exports.addComment = async (req, res) => {
         post.comments.push({
             content,
             author: req.user._id,
-            authorType: req.isAlumni ? 'Alumni' : 'users'
+            authorType: req.isAlumni ? 'Alumni' : 'User'
         });
 
         await post.save();
@@ -83,12 +83,12 @@ exports.addComment = async (req, res) => {
             .populate({
                 path: 'author',
                 select: 'fullName email',
-                model: 'users'
+                model: 'User'
             })
             .populate({
                 path: 'comments.author',
                 select: 'fullName email',
-                model: 'users'
+                model: 'User'
             });
             
         res.status(200).json(populatedPost);
@@ -123,12 +123,12 @@ exports.toggleLike = async (req, res) => {
             .populate({
                 path: 'author',
                 select: 'fullName email',
-                model: 'users'
+                model: 'User'
             })
             .populate({
                 path: 'comments.author',
                 select: 'fullName email',
-                model: 'users'
+                model: 'User'
             });
             
         res.status(200).json(populatedPost);

@@ -3,6 +3,7 @@ require('dotenv').config(); // If using .env for MONGO_URI
 
 // Import models
 require('./users');
+require('./alumni');
 require('./Post');
 
 const mongo_uri = process.env.MONGO_URI;

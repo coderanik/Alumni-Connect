@@ -1,21 +1,11 @@
 import React, { useState, useEffect } from "react";
 import axios from "axios";
-import { io } from "socket.io-client";
+import { useSocket } from "../context/SocketContext";
+import { useNavigate } from "react-router-dom";
+import { useAuth } from "../context/AuthContext";
 
 // Base URL for API calls
 const API_BASE_URL = 'http://localhost:8080';
-
-// Connect to backend socket with authentication
-const socket = io(API_BASE_URL, {
-  auth: {
-    token: localStorage.getItem('token')
-  },
-  transports: ['websocket', 'polling'],
-  reconnection: true,
-  reconnectionAttempts: 5,
-  reconnectionDelay: 1000,
-  timeout: 10000
-});
 
 const Messages = () => {
   const [users, setUsers] = useState([]);
@@ -24,48 +14,34 @@ const Messages = () => {
   const [newMessage, setNewMessage] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const navigate = useNavigate();
+  const { user, isAuthenticated } = useAuth();
+  const socket = useSocket();
 
-  const currentUserId = localStorage.getItem('userId');
-  const token = localStorage.getItem('token');
+  // Check authentication on mount
+  useEffect(() => {
+    console.log('Message component mounted, auth state:', { isAuthenticated, user });
+    if (!isAuthenticated) {
+      console.log('User not authenticated, redirecting to login');
+      navigate('/login');
+      return;
+    }
+  }, [isAuthenticated, user, navigate]);
 
   // Register user with socket when component mounts
   useEffect(() => {
-    if (currentUserId && token) {
-      socket.emit('registerUser', currentUserId);
+    if (user?._id && socket) {
+      console.log('Registering user with socket:', user._id);
+      socket.emit('registerUser', user._id);
     }
-  }, [currentUserId, token]);
-
-  // Handle socket connection events
-  useEffect(() => {
-    socket.on('connect', () => {
-      console.log('Socket connected successfully');
-      setError("");
-    });
-
-    socket.on('connect_error', (error) => {
-      console.error('Socket connection error:', error);
-      setError("Connection error. Please try reconnecting.");
-    });
-
-    socket.on('disconnect', (reason) => {
-      console.log('Socket disconnected:', reason);
-      if (reason === 'io server disconnect') {
-        socket.connect();
-      }
-    });
-
-    return () => {
-      socket.off('connect');
-      socket.off('connect_error');
-      socket.off('disconnect');
-    };
-  }, []);
+  }, [user, socket]);
 
   // Fetch users list
   useEffect(() => {
     const fetchUsers = async () => {
-      if (!token) {
+      if (!isAuthenticated || !user) {
         setError("Please login to access messages");
+        navigate('/login');
         return;
       }
 
@@ -73,7 +49,8 @@ const Messages = () => {
       try {
         const res = await axios.get(`${API_BASE_URL}/api/user`, {
           headers: {
-            Authorization: `Bearer ${token}`
+            'Authorization': `Bearer ${localStorage.getItem('token')}`,
+            'Content-Type': 'application/json'
           }
         });
 
@@ -82,76 +59,104 @@ const Messages = () => {
         setError("");
       } catch (err) {
         console.error('Failed to fetch users', err);
-        setError("Failed to load users. Please check your connection.");
+        if (err.response?.status === 401 || err.response?.status === 403) {
+          // Token expired or invalid
+          navigate('/login');
+        } else {
+          setError(err.response?.data?.error || "Failed to load users. Please check your connection.");
+        }
       } finally {
         setLoading(false);
       }
     };
 
     fetchUsers();
-  }, [token]);
+  }, [isAuthenticated, user, navigate]);
 
   // Fetch messages when user is selected
   useEffect(() => {
     const fetchMessages = async () => {
-      if (!selectedUser) return;
+      if (!selectedUser || !isAuthenticated || !user) return;
       setLoading(true);
       try {
         const res = await axios.get(`${API_BASE_URL}/api/messages/${selectedUser._id}`, {
           headers: {
-            Authorization: `Bearer ${token}`
+            Authorization: `Bearer ${localStorage.getItem('token')}`
           }
         });
         console.log("Messages response:", res.data);
         setMessages(res.data || []);
       } catch (err) {
         console.error('Failed to fetch messages', err);
-        setError("Failed to load messages. Please try again.");
+        if (err.response?.status === 401 || err.response?.status === 403) {
+          // Token expired or invalid
+          navigate('/login');
+        } else {
+          setError("Failed to load messages. Please try again.");
+        }
       } finally {
         setLoading(false);
       }
     };
 
     fetchMessages();
-  }, [selectedUser, token]);
+  }, [selectedUser, isAuthenticated, user, navigate]);
 
   // Socket - Receive new message
   useEffect(() => {
-    socket.on('receiveMessage', (message) => {
+    if (!socket || !user?._id) return;
+
+    const handleReceiveMessage = (message) => {
       console.log("Received message via socket:", message);
       
       if (
         selectedUser && 
-        ((message.senderId === selectedUser._id && message.receiverId === currentUserId) || 
-         (message.receiverId === selectedUser._id && message.senderId === currentUserId))
+        ((message.senderId === selectedUser._id && message.receiverId === user._id) || 
+         (message.receiverId === selectedUser._id && message.senderId === user._id))
       ) {
         setMessages((prev) => [...prev, message]);
       }
-    });
+    };
 
-    return () => socket.off('receiveMessage');
-  }, [selectedUser, currentUserId]);
+    socket.on('receiveMessage', handleReceiveMessage);
+
+    return () => {
+      socket.off('receiveMessage', handleReceiveMessage);
+    };
+  }, [socket, selectedUser, user]);
 
   const handleSendMessage = async () => {
-    if (!newMessage.trim() || !selectedUser) return;
+    if (!newMessage.trim() || !selectedUser || !isAuthenticated || !user) return;
     try {
       const messageData = {
         message: newMessage
       };
 
       // Send message to backend
-      await axios.post(`${API_BASE_URL}/api/messages/send/${selectedUser._id}`, messageData, {
+      const response = await axios.post(`${API_BASE_URL}/api/messages/send/${selectedUser._id}`, messageData, {
         headers: {
-          Authorization: `Bearer ${token}`
+          Authorization: `Bearer ${localStorage.getItem('token')}`
         }
       });
 
+      // Add the sent message to the messages list
+      setMessages((prev) => [...prev, response.data]);
       setNewMessage("");
     } catch (err) {
       console.error('Failed to send message', err);
-      setError("Failed to send message. Please try again.");
+      if (err.response?.status === 401 || err.response?.status === 403) {
+        // Token expired or invalid
+        navigate('/login');
+      } else {
+        setError("Failed to send message. Please try again.");
+      }
     }
   };
+
+  // If not authenticated, show loading or redirect
+  if (!isAuthenticated || !user) {
+    return <div className="text-center py-4">Redirecting to login...</div>;
+  }
 
   return (
     <div className="flex">
@@ -190,11 +195,15 @@ const Messages = () => {
         {selectedUser ? (
           <>
             <h2 className="text-xl font-bold mb-4">Chat with {selectedUser.fullName}</h2>
-            <div className="space-y-2 mb-4">
+            <div className="space-y-2 mb-4 h-[calc(100vh-200px)] overflow-y-auto">
               {messages.map((msg) => (
                 <div
                   key={msg._id}
-                  className={`p-2 rounded ${msg.senderId === currentUserId ? 'bg-blue-200' : 'bg-gray-200'}`}
+                  className={`p-2 rounded max-w-[70%] ${
+                    msg.senderId === user._id 
+                      ? 'bg-blue-500 text-white ml-auto' 
+                      : 'bg-gray-200'
+                  }`}
                 >
                   {msg.message}
                 </div>
@@ -208,8 +217,18 @@ const Messages = () => {
                 placeholder="Type a message..."
                 value={newMessage}
                 onChange={(e) => setNewMessage(e.target.value)}
+                onKeyPress={(e) => {
+                  if (e.key === 'Enter') {
+                    handleSendMessage();
+                  }
+                }}
               />
-              <button onClick={handleSendMessage} className="ml-2 p-2 bg-blue-500 text-white rounded">Send</button>
+              <button 
+                onClick={handleSendMessage} 
+                className="ml-2 p-2 bg-blue-500 text-white rounded hover:bg-blue-600"
+              >
+                Send
+              </button>
             </div>
           </>
         ) : (

@@ -17,7 +17,7 @@ const postSchema = new mongoose.Schema({
     },
     authorType: {
         type: String,
-        enum: ['users', 'Alumni'],
+        enum: ['User', 'Alumni'],
         required: true
     },
     likes: [{
@@ -32,7 +32,7 @@ const postSchema = new mongoose.Schema({
         },
         authorType: {
             type: String,
-            enum: ['users', 'Alumni']
+            enum: ['User', 'Alumni']
         },
         createdAt: {
             type: Date,

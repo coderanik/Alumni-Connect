@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import axios from '../utils/axios';
+import axios from 'axios';
 
 const AuthContext = createContext();
 
@@ -15,59 +15,81 @@ export const AuthProvider = ({ children }) => {
     const [user, setUser] = useState(null);
     const [loading, setLoading] = useState(true);
 
+    // Check for existing auth on mount
     useEffect(() => {
-        const token = localStorage.getItem('token');
-        const loggedInUser = localStorage.getItem('loggedInUser');
-        const isAlumni = localStorage.getItem('isAlumni') === 'true';
-        
-        if (token && loggedInUser) {
-            // Set initial user data from localStorage
-            setUser({
-                fullName: loggedInUser,
-                isAlumni: isAlumni
-            });
-            
-            // Then try to fetch updated user data
-            const fetchUserData = async () => {
-                try {
-                    const response = await axios.get('/api/user/profile');
-                    setUser({
-                        ...response.data,
-                        isAlumni: isAlumni
+        const initializeAuth = async () => {
+            try {
+                const token = localStorage.getItem('token');
+                const userData = localStorage.getItem('user');
+                
+                if (token && userData) {
+                    // Verify token with backend
+                    const response = await axios.get('http://localhost:8080/api/auth/verify', {
+                        headers: {
+                            Authorization: `Bearer ${token}`
+                        }
                     });
-                } catch (error) {
-                    console.error('Error fetching user data:', error);
-                    // Keep the basic user data from localStorage even if profile fetch fails
-                } finally {
-                    setLoading(false);
+
+                    if (response.data.success) {
+                        setUser(JSON.parse(userData));
+                    } else {
+                        // Token is invalid, clear storage
+                        localStorage.removeItem('token');
+                        localStorage.removeItem('user');
+                        setUser(null);
+                    }
                 }
-            };
-            fetchUserData();
-        } else {
-            setLoading(false);
-        }
+            } catch (error) {
+                console.error('Auth initialization error:', error);
+                // Clear invalid auth data
+                localStorage.removeItem('token');
+                localStorage.removeItem('user');
+                setUser(null);
+            } finally {
+                setLoading(false);
+            }
+        };
+
+        initializeAuth();
     }, []);
 
     const login = async (userData, token) => {
-        localStorage.setItem('token', token);
-        localStorage.setItem('loggedInUser', userData.fullName);
-        localStorage.setItem('isAlumni', userData.isAlumni);
-        setUser(userData);
+        try {
+            // Store auth data
+            localStorage.setItem('token', token);
+            localStorage.setItem('user', JSON.stringify(userData));
+            
+            // Set user state
+            setUser(userData);
+            
+            // Set default axios header
+            axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
+            
+            return true;
+        } catch (error) {
+            console.error('Login error:', error);
+            return false;
+        }
     };
 
     const logout = () => {
-        setUser(null);
+        // Clear auth data
         localStorage.removeItem('token');
-        localStorage.removeItem('loggedInUser');
-        localStorage.removeItem('isAlumni');
+        localStorage.removeItem('user');
+        
+        // Clear user state
+        setUser(null);
+        
+        // Remove axios header
+        delete axios.defaults.headers.common['Authorization'];
     };
 
     const value = {
         user,
+        isAuthenticated: !!user,
         loading,
         login,
-        logout,
-        isAuthenticated: !!user
+        logout
     };
 
     return (

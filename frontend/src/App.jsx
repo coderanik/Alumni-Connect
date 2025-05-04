@@ -19,13 +19,11 @@ import { AuthProvider } from './context/AuthContext';
 import Forum from './components/Forum/Forum';
 
 function App() {
-  const authUserId = localStorage.getItem('userId');
-
   return (
     <div className="font-outfit overflow-hidden">
       <ToastContainer />
       <AuthProvider>
-        <SocketProvider userId={authUserId}>
+        <SocketProvider>
           <Routes>
             <Route path="/" element={<Layout />}>
               <Route index element={<Home />} />
